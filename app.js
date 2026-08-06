@@ -1,3 +1,8 @@
+
+const SUPABASE_URL = "https://krptjyuoxwjjrmwumaas.supabase.co";
+const SUPABASE_KEY = "sb_publishable_-wgaAPQEINcCLeT6BhlA3A_kmjZ20kr";
+const API_URL = `${SUPABASE_URL}/rest/v1/reservations`;
+
 const TABLE_POSITIONS = [
   { id: 1, x: 34, y: 31 },
   { id: 2, x: 27, y: 36 },
@@ -19,8 +24,10 @@ const TABLE_POSITIONS = [
   { id: 15, x: 72, y: 73 }
 ];
 
-const STORAGE_KEY = "metGala2026Reservations";
 const MY_RESERVATION_KEY = "metGala2026MyReservation";
+
+let reservations = [];
+let currentTableId = null;
 
 const tablesLayer = document.querySelector("#tablesLayer");
 const modalBackdrop = document.querySelector("#modalBackdrop");
@@ -36,18 +43,13 @@ const formMessage = document.querySelector("#formMessage");
 const reservationSummary = document.querySelector("#reservationSummary");
 const summaryTitle = document.querySelector("#summaryTitle");
 const summaryUser = document.querySelector("#summaryUser");
+const cancelReservationButton = document.querySelector("#cancelReservationButton");
 
-function getReservations() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? {};
-  } catch {
-    return {};
-  }
-}
-
-function saveReservations(reservations) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(reservations));
-}
+const apiHeaders = {
+  apikey: SUPABASE_KEY,
+  Authorization: `Bearer ${SUPABASE_KEY}`,
+  "Content-Type": "application/json"
+};
 
 function getMyReservation() {
   try {
@@ -65,9 +67,55 @@ function saveMyReservation(reservation) {
   }
 }
 
-function getTableSeats(tableId) {
-  const reservations = getReservations();
-  return reservations[tableId] ?? {};
+async function apiRequest(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...apiHeaders,
+      ...(options.headers || {})
+    }
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || `Error ${response.status}`);
+  }
+
+  if (response.status === 204) return null;
+
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
+}
+
+async function loadReservations() {
+  try {
+    reservations = await apiRequest(
+      `${API_URL}?select=id,table_number,seat_number,roblox_username,artist_name,created_at&order=table_number.asc,seat_number.asc`
+    );
+    updateSeatDots();
+
+    if (currentTableId !== null && !modalBackdrop.hidden) {
+      renderSeatList(currentTableId);
+    }
+  } catch (error) {
+    console.error(error);
+    formMessage.textContent =
+      "No se pudieron cargar las reservaciones. Revisa la conexión con Supabase.";
+  }
+}
+
+function getTableReservations(tableId) {
+  return reservations.filter(
+    (reservation) => Number(reservation.table_number) === Number(tableId)
+  );
+}
+
+function getSeatReservation(tableId, seatId) {
+  return reservations.find(
+    (reservation) =>
+      Number(reservation.table_number) === Number(tableId) &&
+      Number(reservation.seat_number) === Number(seatId)
+  );
 }
 
 function createTableNode(table) {
@@ -104,23 +152,21 @@ function renderTables() {
 }
 
 function updateSeatDots() {
-  const reservations = getReservations();
   const mine = getMyReservation();
 
   document.querySelectorAll(".table-node").forEach((tableNode) => {
     const tableId = Number(tableNode.dataset.tableId);
-    const tableReservations = reservations[tableId] ?? {};
 
     tableNode.querySelectorAll(".seat-dot").forEach((dot) => {
       const seatId = Number(dot.dataset.seat);
+      const reservation = getSeatReservation(tableId, seatId);
+
       dot.classList.remove("reserved", "mine");
 
-      if (tableReservations[seatId]) {
+      if (reservation) {
         const isMine =
           mine &&
-          mine.tableId === tableId &&
-          mine.seatId === seatId &&
-          mine.username === tableReservations[seatId]?.username;
+          Number(mine.id) === Number(reservation.id);
 
         dot.classList.add(isMine ? "mine" : "reserved");
       }
@@ -131,6 +177,7 @@ function updateSeatDots() {
 }
 
 function openTable(tableId) {
+  currentTableId = tableId;
   selectedTableInput.value = tableId;
   selectedSeatInput.value = "";
   formMessage.textContent = "";
@@ -146,35 +193,42 @@ function closeModal() {
   reservationForm.reset();
   selectedSeatInput.value = "";
   formMessage.textContent = "";
+  currentTableId = null;
 }
 
 function renderSeatList(tableId) {
-  const seats = getTableSeats(tableId);
+  const tableReservations = getTableReservations(tableId);
   const myReservation = getMyReservation();
-  const reservedCount = Object.keys(seats).length;
+  const reservedCount = tableReservations.length;
+
   modalAvailability.textContent =
     `${4 - reservedCount} de 4 lugares disponibles`;
 
   seatList.innerHTML = "";
 
   for (let seatId = 1; seatId <= 4; seatId++) {
-    const reservation = seats[seatId];
-    const username = reservation?.username;
-    const reservedArtistName = reservation?.artistName;
+    const reservation = getSeatReservation(tableId, seatId);
     const button = document.createElement("button");
     button.type = "button";
     button.className = "seat-option";
 
     const isMine =
       myReservation &&
-      myReservation.tableId === tableId &&
-      myReservation.seatId === seatId;
+      reservation &&
+      Number(myReservation.id) === Number(reservation.id);
 
-    button.disabled = Boolean(username) && !isMine;
+    button.disabled = Boolean(reservation) && !isMine;
+
     button.innerHTML = `
       <span class="seat-number">${seatId}</span>
-      <span>${username ? `@${escapeHtml(username)} · ${escapeHtml(reservedArtistName || "Artista sin nombre")}` : "Lugar disponible"}</span>
-      <span class="seat-status">${isMine ? "TU LUGAR" : username ? "RESERVADO" : "ELEGIR"}</span>
+      <span>${
+        reservation
+          ? `@${escapeHtml(reservation.roblox_username)} · ${escapeHtml(reservation.artist_name)}`
+          : "Lugar disponible"
+      }</span>
+      <span class="seat-status">${
+        isMine ? "TU LUGAR" : reservation ? "RESERVADO" : "ELEGIR"
+      }</span>
     `;
 
     if (!button.disabled) {
@@ -182,11 +236,13 @@ function renderSeatList(tableId) {
         seatList.querySelectorAll(".seat-option").forEach((item) => {
           item.classList.remove("selected");
         });
+
         button.classList.add("selected");
         selectedSeatInput.value = seatId;
+
         if (isMine && myReservation) {
-          robloxUsername.value = myReservation.username;
-          artistName.value = myReservation.artistName || "";
+          robloxUsername.value = myReservation.roblox_username;
+          artistName.value = myReservation.artist_name;
         }
       });
     }
@@ -196,7 +252,7 @@ function renderSeatList(tableId) {
 }
 
 function escapeHtml(value) {
-  return value.replace(/[&<>"']/g, (character) => {
+  return String(value).replace(/[&<>"']/g, (character) => {
     const entities = {
       "&": "&amp;",
       "<": "&lt;",
@@ -212,7 +268,15 @@ function isValidRobloxUsername(username) {
   return /^[A-Za-z0-9_]{3,20}$/.test(username);
 }
 
-reservationForm.addEventListener("submit", (event) => {
+async function usernameAlreadyReserved(username) {
+  const normalized = username.toLowerCase();
+  return reservations.some(
+    (reservation) =>
+      String(reservation.roblox_username).toLowerCase() === normalized
+  );
+}
+
+reservationForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const tableId = Number(selectedTableInput.value);
@@ -237,34 +301,61 @@ reservationForm.addEventListener("submit", (event) => {
     return;
   }
 
-  const reservations = getReservations();
-  const existingMine = getMyReservation();
+  await loadReservations();
 
-  if (existingMine) {
-    const oldTable = reservations[existingMine.tableId] ?? {};
-    if (oldTable[existingMine.seatId]?.username === existingMine.username) {
-      delete oldTable[existingMine.seatId];
-    }
-    reservations[existingMine.tableId] = oldTable;
-  }
-
-  reservations[tableId] = reservations[tableId] ?? {};
-
-  if (reservations[tableId][seatId]) {
-    formMessage.textContent = "Ese asiento acaba de ser reservado. Elige otro.";
-    saveReservations(reservations);
+  if (getSeatReservation(tableId, seatId)) {
+    formMessage.textContent =
+      "Ese asiento ya fue reservado. Elige otro.";
     renderSeatList(tableId);
     return;
   }
 
-  reservations[tableId][seatId] = { username, artistName: artist };
-  saveReservations(reservations);
-  saveMyReservation({ tableId, seatId, username, artistName: artist });
+  const mine = getMyReservation();
+  if (!mine && await usernameAlreadyReserved(username)) {
+    formMessage.textContent =
+      "Ese usuario de Roblox ya tiene una reservación.";
+    return;
+  }
 
-  formMessage.textContent = "Reservación confirmada.";
-  updateSeatDots();
+  if (mine) {
+    formMessage.textContent =
+      "Ya tienes una reservación. Cancélala primero para elegir otro lugar.";
+    return;
+  }
 
-  setTimeout(closeModal, 700);
+  formMessage.textContent = "Guardando reservación…";
+
+  try {
+    const created = await apiRequest(API_URL, {
+      method: "POST",
+      headers: {
+        Prefer: "return=representation"
+      },
+      body: JSON.stringify({
+        table_number: tableId,
+        seat_number: seatId,
+        roblox_username: username,
+        artist_name: artist
+      })
+    });
+
+    const reservation = created?.[0];
+
+    if (!reservation) {
+      throw new Error("Supabase no devolvió la reservación creada.");
+    }
+
+    saveMyReservation(reservation);
+    formMessage.textContent = "Reservación confirmada.";
+
+    await loadReservations();
+
+    setTimeout(closeModal, 800);
+  } catch (error) {
+    console.error(error);
+    formMessage.textContent =
+      "No se pudo guardar. Revisa las políticas de Supabase o prueba de nuevo.";
+  }
 });
 
 function renderMyReservation() {
@@ -275,26 +366,49 @@ function renderMyReservation() {
     return;
   }
 
+  const stillExists = reservations.find(
+    (reservation) => Number(reservation.id) === Number(mine.id)
+  );
+
+  if (!stillExists && reservations.length > 0) {
+    saveMyReservation(null);
+    reservationSummary.hidden = true;
+    return;
+  }
+
   reservationSummary.hidden = false;
-  summaryTitle.textContent = `Mesa ${mine.tableId} · Asiento ${mine.seatId}`;
-  summaryUser.textContent = `@${mine.username} · ${mine.artistName || "Artista sin nombre"}`;
+  summaryTitle.textContent =
+    `Mesa ${mine.table_number} · Asiento ${mine.seat_number}`;
+  summaryUser.textContent =
+    `@${mine.roblox_username} · ${mine.artist_name}`;
 }
 
-document.querySelector("#cancelReservationButton").addEventListener("click", () => {
+cancelReservationButton.addEventListener("click", async () => {
   const mine = getMyReservation();
   if (!mine) return;
 
-  const reservations = getReservations();
-  const table = reservations[mine.tableId] ?? {};
+  cancelReservationButton.disabled = true;
+  cancelReservationButton.textContent = "CANCELANDO…";
 
-  if (table[mine.seatId]?.username === mine.username) {
-    delete table[mine.seatId];
-    reservations[mine.tableId] = table;
-    saveReservations(reservations);
+  try {
+    await apiRequest(`${API_URL}?id=eq.${mine.id}`, {
+      method: "DELETE",
+      headers: {
+        Prefer: "return=minimal"
+      }
+    });
+
+    saveMyReservation(null);
+    await loadReservations();
+  } catch (error) {
+    console.error(error);
+    alert(
+      "Todavía falta autorizar la política DELETE en Supabase para cancelar reservaciones."
+    );
+  } finally {
+    cancelReservationButton.disabled = false;
+    cancelReservationButton.textContent = "CANCELAR RESERVACIÓN";
   }
-
-  saveMyReservation(null);
-  updateSeatDots();
 });
 
 document.querySelector("#openMapButton").addEventListener("click", () => {
@@ -312,3 +426,5 @@ document.addEventListener("keydown", (event) => {
 });
 
 renderTables();
+loadReservations();
+setInterval(loadReservations, 10000);

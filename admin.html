@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel de reservas · Met Gala 2026</title>
+  <style>
+    :root {
+      --bg: #071a15;
+      --panel: #0d2a22;
+      --panel-2: #12372d;
+      --gold: #d0ad63;
+      --cream: #f4ecd9;
+      --muted: #b9ac8f;
+      --danger: #a94d45;
+      --border: rgba(208, 173, 99, .35);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--cream);
+      background:
+        radial-gradient(circle at top, rgba(32, 76, 60, .45), transparent 34rem),
+        var(--bg);
+      font-family: Arial, sans-serif;
+    }
+
+    .shell {
+      width: min(1100px, calc(100% - 24px));
+      margin: 24px auto;
+    }
+
+    header {
+      padding: 28px;
+      border: 1px solid var(--border);
+      background: rgba(5, 20, 15, .78);
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--gold);
+      letter-spacing: .18em;
+      font-size: 12px;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: Georgia, serif;
+      font-size: clamp(38px, 7vw, 66px);
+      font-weight: 500;
+    }
+
+    .sub {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    button, input {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--gold);
+      padding: 12px 16px;
+      color: #09150f;
+      background: var(--gold);
+      cursor: pointer;
+    }
+
+    button.secondary {
+      color: var(--gold);
+      background: transparent;
+    }
+
+    input {
+      flex: 1 1 240px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      outline: none;
+      color: var(--cream);
+      background: var(--panel);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin: 18px 0;
+    }
+
+    .stat {
+      padding: 18px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+    }
+
+    .stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: .1em;
+    }
+
+    .stat strong {
+      display: block;
+      margin-top: 8px;
+      color: var(--gold);
+      font-family: Georgia, serif;
+      font-size: 34px;
+      font-weight: 500;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      background: rgba(5, 20, 15, .6);
+    }
+
+    table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 14px;
+      border-bottom: 1px solid rgba(208, 173, 99, .17);
+      text-align: left;
+    }
+
+    th {
+      color: var(--gold);
+      background: var(--panel-2);
+      font-size: 12px;
+      letter-spacing: .08em;
+    }
+
+    td {
+      color: var(--cream);
+    }
+
+    .delete-button {
+      border-color: var(--danger);
+      color: white;
+      background: var(--danger);
+    }
+
+    .empty, .message {
+      padding: 28px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .message {
+      min-height: 20px;
+      padding: 10px 0;
+      color: var(--gold);
+      text-align: left;
+    }
+
+    @media (max-width: 640px) {
+      .stats { grid-template-columns: 1fr; }
+      header { padding: 22px 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <p class="eyebrow">GROOVEPRODUCTIONS</p>
+      <h1>Panel de reservaciones</h1>
+      <p class="sub">
+        Consulta los 60 lugares del salón y elimina reservaciones cuando sea necesario.
+      </p>
+    </header>
+
+    <div class="toolbar">
+      <input id="searchInput" type="search" placeholder="Buscar usuario, artista o mesa">
+      <button id="refreshButton" class="secondary" type="button">ACTUALIZAR</button>
+    </div>
+
+    <section class="stats">
+      <div class="stat">
+        <span>RESERVADOS</span>
+        <strong id="reservedCount">0</strong>
+      </div>
+      <div class="stat">
+        <span>DISPONIBLES</span>
+        <strong id="availableCount">60</strong>
+      </div>
+      <div class="stat">
+        <span>MESAS COMPLETAS</span>
+        <strong id="fullTablesCount">0</strong>
+      </div>
+    </section>
+
+    <p id="message" class="message" aria-live="polite"></p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>MESA</th>
+            <th>ASIENTO</th>
+            <th>USUARIO ROBLOX</th>
+            <th>ARTISTA</th>
+            <th>FECHA</th>
+            <th>ACCIÓN</th>
+          </tr>
+        </thead>
+        <tbody id="reservationsBody"></tbody>
+      </table>
+      <div id="emptyState" class="empty" hidden>No hay reservaciones.</div>
+    </div>
+  </main>
+
+  <script>
+    const SUPABASE_URL = "https://krptjyuoxwjjrmwumaas.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_-wgaAPQEINcCLeT6BhlA3A_kmjZ20kr";
+    const API_URL = `${SUPABASE_URL}/rest/v1/reservations`;
+
+    let reservations = [];
+
+    const body = document.querySelector("#reservationsBody");
+    const emptyState = document.querySelector("#emptyState");
+    const message = document.querySelector("#message");
+    const searchInput = document.querySelector("#searchInput");
+    const reservedCount = document.querySelector("#reservedCount");
+    const availableCount = document.querySelector("#availableCount");
+    const fullTablesCount = document.querySelector("#fullTablesCount");
+
+    const headers = {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json"
+    };
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (character) => {
+        const entities = {
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#039;"
+        };
+        return entities[character];
+      });
+    }
+
+    async function request(url, options = {}) {
+      const response = await fetch(url, {
+        ...options,
+        headers: { ...headers, ...(options.headers || {}) }
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      if (response.status === 204) return null;
+
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
+    }
+
+    function updateStats() {
+      reservedCount.textContent = reservations.length;
+      availableCount.textContent = Math.max(0, 60 - reservations.length);
+
+      const counts = {};
+      reservations.forEach((item) => {
+        counts[item.table_number] = (counts[item.table_number] || 0) + 1;
+      });
+
+      fullTablesCount.textContent =
+        Object.values(counts).filter((count) => count >= 4).length;
+    }
+
+    function render() {
+      const query = searchInput.value.trim().toLowerCase();
+
+      const filtered = reservations.filter((item) => {
+        return (
+          String(item.table_number).includes(query) ||
+          String(item.seat_number).includes(query) ||
+          String(item.roblox_username).toLowerCase().includes(query) ||
+          String(item.artist_name).toLowerCase().includes(query)
+        );
+      });
+
+      body.innerHTML = "";
+      emptyState.hidden = filtered.length !== 0;
+
+      filtered.forEach((item) => {
+        const row = document.createElement("tr");
+        const date = item.created_at
+          ? new Date(item.created_at).toLocaleString("es-MX")
+          : "—";
+
+        row.innerHTML = `
+          <td>${item.table_number}</td>
+          <td>${item.seat_number}</td>
+          <td>@${escapeHtml(item.roblox_username)}</td>
+          <td>${escapeHtml(item.artist_name)}</td>
+          <td>${escapeHtml(date)}</td>
+          <td>
+            <button class="delete-button" type="button" data-id="${item.id}">
+              BORRAR
+            </button>
+          </td>
+        `;
+
+        body.appendChild(row);
+      });
+
+      body.querySelectorAll(".delete-button").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const id = button.dataset.id;
+          const reservation = reservations.find(
+            (item) => String(item.id) === String(id)
+          );
+
+          const confirmed = confirm(
+            `¿Borrar la reservación de @${reservation.roblox_username}, Mesa ${reservation.table_number}, Asiento ${reservation.seat_number}?`
+          );
+
+          if (!confirmed) return;
+
+          button.disabled = true;
+          message.textContent = "Eliminando reservación…";
+
+          try {
+            await request(`${API_URL}?id=eq.${encodeURIComponent(id)}`, {
+              method: "DELETE",
+              headers: { Prefer: "return=minimal" }
+            });
+
+            message.textContent = "Reservación eliminada.";
+            await loadReservations();
+          } catch (error) {
+            console.error(error);
+            message.textContent = "No se pudo eliminar la reservación.";
+            button.disabled = false;
+          }
+        });
+      });
+    }
+
+    async function loadReservations() {
+      message.textContent = "Cargando reservaciones…";
+
+      try {
+        reservations = await request(
+          `${API_URL}?select=*&order=table_number.asc,seat_number.asc`
+        );
+
+        updateStats();
+        render();
+        message.textContent = `Última actualización: ${new Date().toLocaleTimeString("es-MX")}`;
+      } catch (error) {
+        console.error(error);
+        message.textContent = "No se pudieron cargar las reservaciones.";
+      }
+    }
+
+    searchInput.addEventListener("input", render);
+    document.querySelector("#refreshButton").addEventListener("click", loadReservations);
+
+    loadReservations();
+    setInterval(loadReservations, 15000);
+  </script>
+</body>
+</html>

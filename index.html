@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Met Gala 2026 · Reservaciones</title>
+  <meta name="description" content="Reserva tu lugar para Met Gala 2026 — Fashion is Art.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero" id="inicio">
+      <div class="ornament ornament-top"></div>
+      <div class="monogram">GP</div>
+      <p class="eyebrow">GROOVEPRODUCTIONS PRESENTA</p>
+      <h1>MET GALA <span>2026</span></h1>
+      <div class="gold-rule"></div>
+      <p class="theme">FASHION IS ART</p>
+      <p class="intro">
+        Selecciona una mesa, revisa quién ya reservó y aparta tu asiento.
+      </p>
+      <button class="primary-button" id="openMapButton">RESERVAR MI LUGAR</button>
+    </header>
+
+    <main id="mapSection" class="map-section">
+      <div class="section-heading">
+        <p class="eyebrow">SALÓN PRINCIPAL</p>
+        <h2>Elige tu mesa</h2>
+        <p>Toca cualquier mesa para consultar sus cuatro lugares.</p>
+      </div>
+
+      <div class="legend" aria-label="Leyenda de disponibilidad">
+        <span><i class="legend-dot available"></i>Disponible</span>
+        <span><i class="legend-dot reserved"></i>Reservado</span>
+        <span><i class="legend-dot mine"></i>Tu lugar</span>
+      </div>
+
+      <div class="floorplan-wrap">
+        <div class="floorplan" id="floorplan" aria-label="Plano interactivo del salón">
+          <div class="stage">
+            <span>ESCENARIO</span>
+          </div>
+
+          <div class="runway">
+            <span>PASARELA</span>
+          </div>
+
+          <div class="garden garden-1"></div>
+          <div class="garden garden-2"></div>
+          <div class="garden garden-3"></div>
+          <div class="garden garden-4"></div>
+
+          <div class="entry-label">ENTRADA</div>
+          <div id="tablesLayer"></div>
+        </div>
+      </div>
+
+      <section class="reservation-summary" id="reservationSummary" hidden>
+        <p class="eyebrow">MI RESERVACIÓN</p>
+        <h3 id="summaryTitle">Mesa — · Asiento —</h3>
+        <p id="summaryUser">@usuario</p>
+        <button class="secondary-button" id="cancelReservationButton">CANCELAR RESERVACIÓN</button>
+      </section>
+    </main>
+
+    <footer>
+      <div class="gold-rule"></div>
+      <p>MET GALA 2026 · FASHION IS ART</p>
+      <small>Una producción de GrooveProductions</small>
+    </footer>
+  </div>
+
+  <div class="modal-backdrop" id="modalBackdrop" hidden>
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <button class="close-button" id="closeModalButton" aria-label="Cerrar">×</button>
+      <p class="eyebrow">RESERVACIÓN</p>
+      <h2 id="modalTitle">Mesa 1</h2>
+      <p id="modalAvailability">4 de 4 lugares disponibles</p>
+
+      <div class="seat-list" id="seatList"></div>
+
+      <form id="reservationForm">
+        <label for="robloxUsername">Usuario de Roblox</label>
+        <input
+          id="robloxUsername"
+          name="robloxUsername"
+          type="text"
+          maxlength="20"
+          autocomplete="off"
+          placeholder="Ejemplo: bpxorlando_x"
+          required
+        >
+
+        <label for="artistName">Nombre del artista</label>
+        <input
+          id="artistName"
+          name="artistName"
+          type="text"
+          maxlength="40"
+          autocomplete="off"
+          placeholder="Ejemplo: Kenia OS"
+          required
+        >
+
+        <input id="selectedTable" type="hidden">
+        <input id="selectedSeat" type="hidden">
+        <button class="primary-button full-width" type="submit">CONFIRMAR RESERVACIÓN</button>
+      </form>
+
+      <p class="form-message" id="formMessage" aria-live="polite"></p>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
